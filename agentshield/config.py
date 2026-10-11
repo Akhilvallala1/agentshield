@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     fp_threshold: float = 0.01
     approver: str = "akhil"
-    gateway_url: str = "http://127.0.0.1:8000"
+    gateway_url: str = "http://127.0.0.1:8765"
 
     def resolved_mongodb_uri(self) -> str:
         if self.mongodb_uri:

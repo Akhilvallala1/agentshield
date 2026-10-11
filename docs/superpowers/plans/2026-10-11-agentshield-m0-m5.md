@@ -217,7 +217,7 @@ class Settings(BaseSettings):
 
     fp_threshold: float = 0.01
     approver: str = "akhil"
-    gateway_url: str = "http://127.0.0.1:8000"
+    gateway_url: str = "http://127.0.0.1:8765"
 
     def resolved_mongodb_uri(self) -> str:
         if self.mongodb_uri:
@@ -1556,7 +1556,7 @@ def health() -> dict:
 
 - [ ] **Step 2: Run it**
 
-Terminal A: `uv run uvicorn agentshield.gateway:app --port 8000`
+Terminal A: `uv run uvicorn agentshield.gateway:app --port 8765`
 Expected log: `loaded 0 active rules`, `change stream open on rules`.
 
 - [ ] **Step 3: Send the golden message** (Terminal B)
@@ -1564,7 +1564,7 @@ Expected log: `loaded 0 active rules`, `change stream open on rules`.
 ```bash
 uv run python -c "
 import httpx; from demo_agents.fixtures import GOLDEN_MESSAGE as m, GOLDEN_SESSION as s
-r = httpx.post('http://127.0.0.1:8000/a2a/forward', json={'from_agent':'intake','to_agent':'claims','message':m,'session_id':s}, timeout=60).json()
+r = httpx.post('http://127.0.0.1:8765/a2a/forward', json={'from_agent':'intake','to_agent':'claims','message':m,'session_id':s}, timeout=60).json()
 print(r['delivered_message']); print(r['latency_ms'], 'ms'); print(r['reply'])"
 ```
 Expected: `Maria Gonzalez` and the phone are tokenized; `INS-AZ-4471-K`, `ADJ#77-1043`, `CLM-2026-000913` pass through **unredacted** (that is the gen 0 leak); inline latency well under 50 ms after warm-up. `traces` in Atlas has 2 new docs with `audited: false`.
@@ -2717,7 +2717,7 @@ if __name__ == "__main__":
 set -euo pipefail
 cd "$(dirname "$0")/.."
 tmux kill-session -t shield 2>/dev/null || true
-tmux new-session -d -s shield -n demo "uv run uvicorn agentshield.gateway:app --port 8000"
+tmux new-session -d -s shield -n demo "uv run uvicorn agentshield.gateway:app --port 8765"
 tmux split-window -h -t shield "bash"
 tmux split-window -v -t shield:0.1 "bash"
 tmux split-window -v -t shield:0.0 "bash"
