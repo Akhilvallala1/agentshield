@@ -36,12 +36,18 @@ Everything in this repo was written at the event. See `git log` for the per-mile
 
 ## Run it
 
+Needs Python 3.11+, [uv](https://docs.astral.sh/uv/), tmux, a MongoDB Atlas cluster (Vector Search enabled),
+a Voyage API key, and an OpenAI key (optional with `LLM_REPLAY=1`, which replays the recorded LLM responses in
+`demo_agents/recordings/`).
+
     uv sync && uv run python -m spacy download en_core_web_sm
-    cp .env.example .env   # fill in Atlas + OpenAI + Voyage
+    cp .env.example .env   # fill in Atlas + Voyage (+ OpenAI unless replaying)
     uv run python scripts/smoke_atlas.py
     uv run python scripts/seed.py --reset
-    uv run python scripts/run_evals.py
-    ./scripts/demo_layout.sh
+    LLM_REPLAY=1 ./scripts/demo_layout.sh
+    uv run pytest -q       # 53 tests, no network needed
+
+In the tmux layout, run the evals pane (bottom right) first for the generation 0 baseline.
 
 Demo flow: `demo send` → `demo audit` → `demo propose` → `approve` → `demo send` (now caught)
 → `demo drift` (product codes that look like policy numbers) → `demo retire` (retirement proposed)
