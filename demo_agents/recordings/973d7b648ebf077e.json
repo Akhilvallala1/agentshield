@@ -1,0 +1,4 @@
+{
+  "model": "gpt-5.6-luna",
+  "content": "{\"verdicts\":[{\"index\":0,\"is_personal\":false,\"reasoning\":\"The value is explicitly described as a product code for a catalog, so it is not tied to a specific person, account, policy, or claim.\"}]}"
+}

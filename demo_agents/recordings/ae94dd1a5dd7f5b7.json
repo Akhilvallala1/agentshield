@@ -1,0 +1,4 @@
+{
+  "model": "gpt-5.6-luna",
+  "content": "{\"verdicts\":[{\"index\":0,\"is_personal\":true,\"reasoning\":\"The matched value is identified as a policy number for a specific car-insurance claim, so it is tied to a person or account.\"},{\"index\":1,\"is_personal\":true,\"reasoning\":\"The matched value appears immediately after \u201cAdjuster\u201d and is likely an adjuster badge or employee identifier tied to a specific person.\"}]}"
+}

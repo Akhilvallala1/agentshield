@@ -1,0 +1,4 @@
+{
+  "model": "gpt-5.6-luna",
+  "content": "{\"verdicts\":[{\"index\":0,\"is_personal\":false,\"reasoning\":\"The matched value is identified as a product reference in a brochure distribution message, not an identifier tied to a person, account, policy, or claim.\"}]}"
+}

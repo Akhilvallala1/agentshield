@@ -1,0 +1,4 @@
+{
+  "model": "gpt-5.6-luna",
+  "content": "{\"verdicts\":[{\"index\":0,\"is_personal\":false,\"reasoning\":\"The value is described as an old family-plan code in a training deck, indicating a product or plan reference rather than an identifier tied to a specific person or account.\"}]}"
+}

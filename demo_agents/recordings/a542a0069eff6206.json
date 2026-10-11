@@ -1,0 +1,4 @@
+{
+  "model": "gpt-5.6-luna",
+  "content": "{\"findings\":[{\"span\":\"INS-AZ-4471-K\",\"entity_type\":\"INSURANCE_POLICY_NUMBER\",\"reasoning\":\"Specific insurance policy identifier that can identify a policy.\",\"confidence\":0.99},{\"span\":\"ADJ#77-1043\",\"entity_type\":\"ADJUSTER_BADGE\",\"reasoning\":\"Specific adjuster badge identifier that can identify an individual adjuster.\",\"confidence\":0.99}]}"
+}
