@@ -63,12 +63,12 @@ class RulesCache:
 
     @staticmethod
     def is_stats_only(change: dict) -> bool:
-        """Hit/FP counters change on every request; they must not look like a rule reload."""
+        """Hit/FP counters and retirement proposals do not change the live rule; skip the reload."""
         if change.get("operationType") != "update":
             return False
         desc = change.get("updateDescription", {})
         fields = list(desc.get("updatedFields", {})) + list(desc.get("removedFields", []))
-        return bool(fields) and all(f.startswith("stats.") or f == "stats" for f in fields)
+        return bool(fields) and all(f.split(".")[0] in ("stats", "retirement") for f in fields)
 
     def start_watch(self) -> None:
         threading.Thread(target=self._watch, name="rules-watch", daemon=True).start()

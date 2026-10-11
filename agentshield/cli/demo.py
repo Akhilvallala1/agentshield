@@ -31,31 +31,32 @@ def send(message: str, session: str, via_intake: bool) -> None:
 
 def drift() -> None:
     url = f"{get_settings().gateway_url}/a2a/forward"
-    for message in DRIFT_MESSAGES:
+    for i, message in enumerate(DRIFT_MESSAGES):  # each from its own session: independent senders
         r = httpx.post(url, timeout=90, json={"from_agent": "intake", "to_agent": "claims", "message": message,
-                                              "session_id": DRIFT_SESSION}).json()
+                                              "session_id": f"{DRIFT_SESSION}-{i}"}).json()
         rules = ", ".join(d["rule_id"] for d in r["detections"] if d["rule_id"]) or "-"
         console.print(f"[dim]{rules:>8}[/]  {r['delivered_message']}")
 
 
 def retire_rules() -> None:
-    from agentshield.evals import print_eval_table
-    from agentshield.learning.retirement import MAX_FP_RATE, MIN_HITS, fp_rate, retire, review_hits
+    from agentshield.learning.retirement import (MAX_FP_RATE, MIN_FP_SOURCES, MIN_HITS, fp_rate,
+                                                 propose_retirements, review_hits, should_retire)
     db = get_db()
     console.print("reviewing live rule hits in context...")
     review_hits(db)
-    t = Table("rule", "entity", "live hits", "judged FP", "FP rate", "verdict",
-              title=f"live rule health (retire at > {MAX_FP_RATE:.0%} FP with ≥ {MIN_HITS} hits)")
+    t = Table("rule", "entity", "live hits", "judged FP", "FP rate", "sessions", "verdict",
+              title=f"live rule health (retire at > {MAX_FP_RATE:.0%} FP, ≥ {MIN_HITS} hits, "
+                    f"≥ {MIN_FP_SOURCES} sessions)")
     for r in db.rules.find({"status": "active"}).sort("rule_id", 1):
         s = r.get("stats", {})
-        bad = s.get("live_hits", 0) >= MIN_HITS and fp_rate(s) > MAX_FP_RATE
         t.add_row(r["rule_id"], r["entity_type"], str(s.get("live_hits", 0)), str(s.get("live_fp", 0)),
-                  f"{fp_rate(s):.0%}", "[red]retire[/]" if bad else "[green]keep[/]")
+                  f"{fp_rate(s):.0%}", str(len(set(s.get("fp_sessions", [])))),
+                  "[red]propose retire[/]" if should_retire(s) else "[green]keep[/]")
     console.print(t)
-    for done in retire(db):
-        console.print(f"[red]retired {done['rule_id']}[/] → shadow ({done['fp_rate']:.0%} FP on {done['hits']} hits); "
-                      f"refinement incident {done['incident_id']} opened")
-        print_eval_table(console, done["eval"], done["previous"])
+    for p in propose_retirements(db):
+        console.print(f"[yellow]retirement proposed for {p['rule_id']}[/] ({p['fp_rate']:.0%} FP on {p['hits']} hits "
+                      f"from {p['sources']} sessions); incident {p['incident_id']}. "
+                      "Still live until approved in the approval pane.")
 
 
 def lineage() -> None:

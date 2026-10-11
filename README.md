@@ -23,7 +23,8 @@ Everything in this repo was written at the event. See `git log` for the per-mile
 - M4 Synthesizer + validator + approval CLI: retry loop on validator feedback
 - M5 Change stream hot reload + eval generation N+1
 - M6 Rule retirement: the gateway counts live hits per rule; the auditor judges each hit in context
-  (shape only, never the raw value); rules over 20% false positives on 5+ hits are demoted to shadow,
+  (shape only, never the raw value, passed as untrusted data); rules over 20% false positives on 5+ hits
+  from 2+ independent sessions are proposed for retirement, and on human approval demoted to shadow,
   removed from the live gateway via change stream, and a refinement incident + eval generation is written.
   The harness prunes itself, not just grows.
 
@@ -43,6 +44,7 @@ Everything in this repo was written at the event. See `git log` for the per-mile
     ./scripts/demo_layout.sh
 
 Demo flow: `demo send` → `demo audit` → `demo propose` → `approve` → `demo send` (now caught)
-→ `demo drift` (product codes that look like policy numbers) → `demo retire` (rule pruned) → `demo lineage`.
+→ `demo drift` (product codes that look like policy numbers) → `demo retire` (retirement proposed)
+→ `approve` (retirement approved, rule pruned live) → `demo lineage`.
 
 All data is synthetic (Faker + fixtures). Raw values exist only in the TTL'd `vault`; incidents store shapes and hashes.

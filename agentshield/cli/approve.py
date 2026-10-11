@@ -9,6 +9,7 @@ from rich.table import Table
 from agentshield.config import get_settings
 from agentshield.embeddings import embed
 from agentshield.evals import print_eval_table, run_generation
+from agentshield.learning.retirement import approve_retirement, reject_retirement
 from agentshield.learning.validator import ValidationContext, validate
 from agentshield.pipeline import merged_action  # noqa: F401  re-exported for the approval flow
 
@@ -87,13 +88,42 @@ def edit_rule(db, rule_id: str, new_pattern: str):
     return report
 
 
+def render_retirement(rule: dict) -> None:
+    r = rule["retirement"]
+    body = Table.grid(padding=(0, 2))
+    body.add_row("Rule", safe(f"{rule['rule_id']} v{rule['version']}  {rule['entity_type']}  (live now)"))
+    body.add_row("Pattern", f"[bold cyan]{safe(rule['pattern'])}[/]")
+    body.add_row("Live health", f"{r['hits']} hits, [red]{r['fp']} judged false positives ({r['fp_rate']:.0%})[/] "
+                                f"from {r['sources']} sessions")
+    for i, sample in enumerate(r.get("samples", [])[:3]):
+        body.add_row("Sample" if i == 0 else "", safe(sample))
+    body.add_row("If approved", "rule → shadow, removed from the live gateway, refinement incident "
+                                f"{safe(r['incident_id'])} stays open")
+    console.print(Panel(body, title=f"Proposed retirement {rule['rule_id']}", border_style="red"))
+
+
+def review_retirements(db, approver: str) -> None:
+    for rule in db.rules.find({"status": "active", "retirement.status": "proposed"}).sort("rule_id", 1):
+        render_retirement(rule)
+        choice = Prompt.ask(CHOICE_PROMPT, choices=["a", "r", "e", "s"], default="a")
+        if choice == "a":
+            current, previous = approve_retirement(db, rule["rule_id"], approver)
+            console.print(f"[red]retired {rule['rule_id']}[/] by {approver}; gateway removes it via change stream")
+            print_eval_table(console, current, previous)
+        elif choice == "r":
+            reject_retirement(db, rule["rule_id"], approver)
+            console.print(f"[green]kept {rule['rule_id']}[/]; live counters reset")
+
+
 def main():
     from agentshield.db import get_db
     db, approver = get_db(), get_settings().approver
     proposed = list(db.rules.find({"status": "proposed"}).sort("created_at", 1))
-    if not proposed:
-        console.print("no proposed rules")
+    retirements = db.rules.count_documents({"status": "active", "retirement.status": "proposed"})
+    if not proposed and not retirements:
+        console.print("no proposed rules or retirements")
         return
+    review_retirements(db, approver)
     for rule in proposed:
         while True:
             render(db, rule)
