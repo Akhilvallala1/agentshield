@@ -56,3 +56,10 @@ def test_tokens_stable_per_salt():
 
 def test_no_detections_passthrough():
     assert run("hello there", [POLICY], {}, lambda t: []).text == "hello there"
+
+
+def test_presidio_finds_standard_entities():
+    from agentshield.ner import get_ner
+    text = "Maria Gonzalez can be reached at maria.g@example.com or (415) 555-0134."
+    types = {d.entity_type for d in get_ner()(text)}
+    assert {"PERSON", "EMAIL", "PHONE"} <= types
