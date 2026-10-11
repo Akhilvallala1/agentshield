@@ -92,7 +92,7 @@ def forward(req: ForwardRequest) -> ForwardResponse:
     if not out.blocked:
         raw_reply = AGENTS[req.to_agent](out.text)
         back, _ = _shield(raw_reply, f"{req.to_agent}->{req.from_agent}", "response", req.session_id, request_id)
-        reply = rehydrate(get_db(), req.session_id, back.text)
+        reply = rehydrate(get_db(), req.session_id, back.text, allowed=set(out.tokens) | set(back.tokens))
     log.info("%s %s->%s detections=%d inline=%.1fms", request_id, req.from_agent, req.to_agent,
              len(out.detections), latency_ms)
     return ForwardResponse(request_id=request_id, delivered_message=out.text, reply=reply, blocked=out.blocked,

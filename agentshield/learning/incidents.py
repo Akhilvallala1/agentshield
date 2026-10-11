@@ -20,18 +20,30 @@ def span_hash(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+def _merge(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(set(spans)):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
 def redact_excerpt(text: str, spans: list[tuple[int, int]], focus: tuple[int, int], window: int = 80) -> str:
-    out, focus_start, focus_end = text, focus[0], focus[1]
-    for start, end in sorted(set(spans), reverse=True):
+    # Overlapping spans are merged first so no raw characters survive between them (I3).
+    parts, pos, focus_lo, focus_hi = [], 0, 0, 0
+    for start, end in _merge(list(spans) + [focus]):
+        parts.append(text[pos:start])
+        at = sum(len(p) for p in parts)
         repl = f"<<SHAPE:{shape_of(text[start:end])}>>"
-        out = out[:start] + repl + out[end:]
-        shift = len(repl) - (end - start)
-        if start < focus[0]:
-            focus_start += shift
-            focus_end += shift
-        elif (start, end) == focus:
-            focus_end = focus_start + len(repl)
-    lo, hi = max(0, focus_start - window), min(len(out), focus_end + window)
+        parts.append(repl)
+        if start <= focus[0] < end:
+            focus_lo, focus_hi = at, at + len(repl)
+        pos = end
+    parts.append(text[pos:])
+    out = "".join(parts)
+    lo, hi = max(0, focus_lo - window), min(len(out), focus_hi + window)
     return ("…" if lo > 0 else "") + out[lo:hi] + ("…" if hi < len(out) else "")
 
 

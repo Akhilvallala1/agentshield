@@ -1,4 +1,5 @@
 import argparse
+import re
 import time
 from datetime import datetime, timezone
 
@@ -41,8 +42,11 @@ def audit_pending(db, limit: int = 20, min_confidence: float = 0.7, llm=complete
     created = []
     for trace in db.traces.find({"audited": False, "blocked": False}).sort("ts", 1).limit(limit):
         text = trace["payload_redacted"]
-        findings = [f for f in audit_text(text, llm) if f["confidence"] >= min_confidence]
-        spans = [(f["start"], f["end"]) for f in findings]
+        verified = audit_text(text, llm)
+        # Redact every occurrence of every verified span (I1, I2); confidence only decides
+        # which findings become incidents.
+        spans = [(m.start(), m.end()) for f in verified for m in re.finditer(re.escape(f["span"]), text)]
+        findings = [f for f in verified if f["confidence"] >= min_confidence]
         for f in findings:
             digest = span_hash(f["span"])
             if db.incidents.find_one({"span_sha256": digest, "resolution.status": {"$in": ["open", "rule_proposed"]}}):
@@ -54,7 +58,7 @@ def audit_pending(db, limit: int = 20, min_confidence: float = 0.7, llm=complete
                 "direction": trace["direction"], "trace_request_id": trace["request_id"],
                 "entity_type_guess": f["entity_type"], "shape": shape_of(f["span"]), "span_sha256": digest,
                 "excerpt_redacted": excerpt, "missed_by": ["L1", "L2"], "auditor_confidence": f["confidence"],
-                "auditor_reasoning": f["reasoning"], "resolution": {"status": "open", "rule_id": None},
+                "resolution": {"status": "open", "rule_id": None},
                 "embedding": embed_fn([f"{f['entity_type']}: {excerpt}"])[0],
             })
             created.append(incident_id)

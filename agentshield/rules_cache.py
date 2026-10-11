@@ -1,4 +1,5 @@
 import logging
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -19,16 +20,28 @@ class RulesCache:
         self.reload_count = 0
         self.on_change: Callable[[str], None] | None = None
 
+    @staticmethod
+    def _parse(doc: dict) -> Rule | None:
+        try:
+            return Rule.from_doc(doc)
+        except (re.error, KeyError, TypeError) as e:
+            log.error("skipping bad rule %s: %s", doc.get("rule_id"), e)
+            return None
+
     def load(self) -> int:
-        rules = {d["rule_id"]: Rule.from_doc(d) for d in self._db.rules.find({"status": "active"})}
+        parsed = [(d["rule_id"], self._parse(d)) for d in self._db.rules.find({"status": "active"})]
+        rules = {rule_id: rule for rule_id, rule in parsed if rule}
         with self._lock:
             self._rules = rules
         return len(rules)
 
     def upsert_doc(self, doc: dict) -> None:
+        rule = self._parse(doc) if doc.get("status") == "active" else None
+        if doc.get("status") == "active" and rule is None:
+            return  # keep whatever version was live; one bad doc must not kill hot reload (I5)
         with self._lock:
-            if doc.get("status") == "active":
-                self._rules[doc["rule_id"]] = Rule.from_doc(doc)
+            if rule:
+                self._rules[doc["rule_id"]] = rule
                 msg = f"rule {doc['rule_id']} v{doc.get('version')} ACTIVE ({doc['entity_type']}) -> live"
             else:
                 self._rules.pop(doc["rule_id"], None)

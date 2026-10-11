@@ -1,6 +1,6 @@
 from agentshield.learning.auditor import audit_text
 
-TEXT = "Maria <<PERSON_ab12>> policy INS-AZ-4471-K and badge ADJ#77-1043"
+TEXT = "Maria <<PERSON_ab12cd34>> policy INS-AZ-4471-K and badge ADJ#77-1043"
 
 
 def fake_llm(findings):
@@ -16,6 +16,6 @@ def test_keeps_real_spans_with_offsets():
 def test_drops_hallucinated_spans_and_tokens():
     out = audit_text(TEXT, llm=fake_llm([
         {"span": "INS-ZZ-0000-Q", "entity_type": "INSURANCE_POLICY_NUMBER", "reasoning": "r", "confidence": 0.9},
-        {"span": "<<PERSON_ab12>>", "entity_type": "PERSON", "reasoning": "r", "confidence": 0.9},
+        {"span": "<<PERSON_ab12cd34>>", "entity_type": "PERSON", "reasoning": "r", "confidence": 0.9},
         {"span": "", "entity_type": "OTHER", "reasoning": "r", "confidence": 0.9}]))
     assert out == []
