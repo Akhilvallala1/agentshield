@@ -1,3 +1,4 @@
+import logging
 from collections import OrderedDict
 from functools import lru_cache
 
@@ -5,6 +6,9 @@ from presidio_analyzer import AnalyzerEngine
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 
 from agentshield.types import Detection
+
+# Presidio logs every skipped non-English recognizer and unmapped spaCy label; only errors matter here.
+logging.getLogger("presidio-analyzer").setLevel(logging.ERROR)
 
 PRESIDIO_TO_LABEL = {
     "PERSON": "PERSON",

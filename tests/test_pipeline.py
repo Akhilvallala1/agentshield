@@ -63,3 +63,12 @@ def test_presidio_finds_standard_entities():
     text = "Maria Gonzalez can be reached at maria.g@example.com or (415) 555-0134."
     types = {d.entity_type for d in get_ner()(text)}
     assert {"PERSON", "EMAIL", "PHONE"} <= types
+
+
+def test_presidio_startup_is_quiet(caplog):
+    import logging
+    from agentshield.ner import PresidioNER
+    with caplog.at_level(logging.INFO):
+        PresidioNER()("Call 555 about the 3 cars")
+    noisy = [r for r in caplog.records if r.name == "presidio-analyzer" and r.levelno >= logging.INFO]
+    assert noisy == []
