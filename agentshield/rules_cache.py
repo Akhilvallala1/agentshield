@@ -39,6 +39,8 @@ class RulesCache:
         rule = self._parse(doc) if doc.get("status") == "active" else None
         if doc.get("status") == "active" and rule is None:
             return  # keep whatever version was live; one bad doc must not kill hot reload (I5)
+        if rule is None and doc["rule_id"] not in self._rules:
+            return  # e.g. a newly proposed rule: it was never live, nothing to remove
         with self._lock:
             if rule:
                 self._rules[doc["rule_id"]] = rule

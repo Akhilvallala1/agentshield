@@ -13,6 +13,7 @@ from agentshield.learning.validator import ValidationContext, validate
 from agentshield.pipeline import merged_action  # noqa: F401  re-exported for the approval flow
 
 console = Console()
+CHOICE_PROMPT = escape("[a]pprove  [r]eject  [e]dit  [s]kip")  # unescaped, Rich reads [s] as strikethrough
 
 
 def safe(text) -> str:
@@ -96,7 +97,7 @@ def main():
     for rule in proposed:
         while True:
             render(db, rule)
-            choice = Prompt.ask("[a]pprove  [r]eject  [e]dit  [s]kip", choices=["a", "r", "e", "s"], default="a")
+            choice = Prompt.ask(CHOICE_PROMPT, choices=["a", "r", "e", "s"], default="a")
             if choice == "a":
                 current, previous = approve_rule(db, rule["rule_id"], approver)
                 console.print(f"[green]approved {rule['rule_id']}[/] by {approver}; gateway reloads via change stream")

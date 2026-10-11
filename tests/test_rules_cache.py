@@ -30,3 +30,11 @@ def test_version_update_replaces_rule():
     c.upsert_doc(doc("R-1", version=1))
     c.upsert_doc(doc("R-1", version=2))
     assert [r.version for r in c.all_active()] == [2]
+
+
+def test_proposed_rule_that_was_never_live_is_silent():
+    c = RulesCache(db=None)
+    events = []
+    c.on_change = events.append
+    c.upsert_doc(doc("R-9", status="proposed"))
+    assert events == [] and c.reload_count == 0

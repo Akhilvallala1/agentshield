@@ -155,3 +155,11 @@ def test_sec13_untrusted_text_is_escaped_for_rich():
     console = Console(record=True, width=80)
     console.print(safe("[bold red]APPROVED BY SECURITY[/] policy <<SHAPE:INS-AA-0000-A>>"))
     assert "[bold red]APPROVED BY SECURITY[/]" in console.export_text()
+
+
+def test_approval_prompt_shows_bracket_keys():
+    from rich.console import Console
+    from agentshield.cli.approve import CHOICE_PROMPT
+    console = Console(record=True, width=80)
+    console.print(CHOICE_PROMPT)
+    assert "[a]pprove  [r]eject  [e]dit  [s]kip" in console.export_text()
