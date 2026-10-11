@@ -38,3 +38,38 @@ def test_proposed_rule_that_was_never_live_is_silent():
     c.on_change = events.append
     c.upsert_doc(doc("R-9", status="proposed"))
     assert events == [] and c.reload_count == 0
+
+
+def test_watch_reopens_after_stream_ends():
+    import pytest
+
+    class Stop(Exception):
+        pass
+
+    class Stream(list):
+        def __enter__(self):
+            return iter(self)
+
+        def __exit__(self, *a):
+            return False
+
+    class Rules:
+        def __init__(self):
+            self.opened = 0
+
+        def watch(self, *a, **k):
+            self.opened += 1
+            if self.opened == 1:
+                return Stream([{"operationType": "invalidate"}])  # e.g. collection dropped by a reset
+            raise Stop
+
+        def find(self, q):
+            return [doc("R-1")]
+
+    class DB:
+        rules = Rules()
+
+    c = RulesCache(DB())
+    with pytest.raises(Stop):
+        c._watch()
+    assert DB.rules.opened == 2 and [r.rule_id for r in c.all_active()] == ["R-1"]

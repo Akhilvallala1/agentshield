@@ -61,20 +61,37 @@ class RulesCache:
         with self._lock:
             return list(self._rules.values())
 
+    @staticmethod
+    def is_stats_only(change: dict) -> bool:
+        """Hit/FP counters change on every request; they must not look like a rule reload."""
+        if change.get("operationType") != "update":
+            return False
+        desc = change.get("updateDescription", {})
+        fields = list(desc.get("updatedFields", {})) + list(desc.get("removedFields", []))
+        return bool(fields) and all(f.startswith("stats.") or f == "stats" for f in fields)
+
     def start_watch(self) -> None:
         threading.Thread(target=self._watch, name="rules-watch", daemon=True).start()
 
     def _watch(self) -> None:
         pipeline = [{"$match": {"operationType": {"$in": ["insert", "update", "replace"]}}}]
-        try:
-            with self._db.rules.watch(pipeline, full_document="updateLookup") as stream:
-                log.info("change stream open on rules")
-                for change in stream:
-                    if change.get("fullDocument"):
-                        self.upsert_doc(change["fullDocument"])
-        except PyMongoError as e:
-            log.warning("change stream unavailable (%s); polling rules every 1s", e)
-            self._poll()
+        while True:
+            try:
+                with self._db.rules.watch(pipeline, full_document="updateLookup") as stream:
+                    log.info("change stream open on rules")
+                    for change in stream:
+                        if change.get("operationType") in ("invalidate", "drop", "rename", "dropDatabase"):
+                            break
+                        if self.is_stats_only(change):
+                            continue
+                        if change.get("fullDocument"):
+                            self.upsert_doc(change["fullDocument"])
+            except PyMongoError as e:
+                log.warning("change stream unavailable (%s); polling rules every 1s", e)
+                self._poll()
+                return
+            # The stream ended (e.g. the collection was dropped by a reset): resync and reopen.
+            log.info("change stream closed; reloaded %d active rules", self.load())
 
     def _poll(self) -> None:
         since = datetime.now(timezone.utc)

@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from rich.logging import RichHandler
 
 from agentshield.db import get_db
+from agentshield.learning.retirement import hit_snippets
 from agentshield.ner import get_ner
 from agentshield.pipeline import run
 from agentshield.rules_cache import RulesCache
@@ -73,10 +74,14 @@ def _shield(text: str, agent_pair: str, direction: str, session_id: str, request
     latency_ms = (time.perf_counter() - t0) * 1000
     db = get_db()
     store_tokens(db, session_id, res.tokens)
+    l1_hits = hit_snippets(text, res, salt=session_id)
+    for rule_id in {h["rule_id"] for h in l1_hits}:
+        db.rules.update_one({"rule_id": rule_id},
+                            {"$inc": {"stats.live_hits": sum(h["rule_id"] == rule_id for h in l1_hits)}})
     db.traces.insert_one({
         "request_id": request_id, "session_id": session_id, "agent_pair": agent_pair, "direction": direction,
         "detections": [d.to_dict() for d in res.detections], "payload_redacted": res.text,
-        "blocked": res.blocked, "latency_ms": round(latency_ms, 2), "audited": False,
+        "l1_hits": l1_hits, "blocked": res.blocked, "latency_ms": round(latency_ms, 2), "audited": False,
         "ts": datetime.now(timezone.utc),
     })
     return res, latency_ms

@@ -22,6 +22,10 @@ Everything in this repo was written at the event. See `git log` for the per-mile
 - M3 Auditor + incidents: LLM auditor, shape-redacted incidents, Voyage embeddings, vector search
 - M4 Synthesizer + validator + approval CLI: retry loop on validator feedback
 - M5 Change stream hot reload + eval generation N+1
+- M6 Rule retirement: the gateway counts live hits per rule; the auditor judges each hit in context
+  (shape only, never the raw value); rules over 20% false positives on 5+ hits are demoted to shadow,
+  removed from the live gateway via change stream, and a refinement incident + eval generation is written.
+  The harness prunes itself, not just grows.
 
 ## MongoDB Atlas usage
 
@@ -37,5 +41,8 @@ Everything in this repo was written at the event. See `git log` for the per-mile
     uv run python scripts/seed.py --reset
     uv run python scripts/run_evals.py
     ./scripts/demo_layout.sh
+
+Demo flow: `demo send` → `demo audit` → `demo propose` → `approve` → `demo send` (now caught)
+→ `demo drift` (product codes that look like policy numbers) → `demo retire` (rule pruned) → `demo lineage`.
 
 All data is synthetic (Faker + fixtures). Raw values exist only in the TTL'd `vault`; incidents store shapes and hashes.

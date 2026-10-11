@@ -7,7 +7,7 @@ from rich.table import Table
 
 from agentshield.config import get_settings
 from agentshield.db import get_db
-from demo_agents.fixtures import GOLDEN_MESSAGE, GOLDEN_SESSION
+from demo_agents.fixtures import DRIFT_MESSAGES, DRIFT_SESSION, GOLDEN_MESSAGE, GOLDEN_SESSION
 
 console = Console()
 
@@ -27,6 +27,35 @@ def send(message: str, session: str, via_intake: bool) -> None:
     console.print(Panel(r["delivered_message"], title="Claims Agent receives", border_style=style))
     if r["reply"]:
         console.print(Panel(r["reply"], title="Reply to Intake (re-hydrated)", border_style="magenta"))
+
+
+def drift() -> None:
+    url = f"{get_settings().gateway_url}/a2a/forward"
+    for message in DRIFT_MESSAGES:
+        r = httpx.post(url, timeout=90, json={"from_agent": "intake", "to_agent": "claims", "message": message,
+                                              "session_id": DRIFT_SESSION}).json()
+        rules = ", ".join(d["rule_id"] for d in r["detections"] if d["rule_id"]) or "-"
+        console.print(f"[dim]{rules:>8}[/]  {r['delivered_message']}")
+
+
+def retire_rules() -> None:
+    from agentshield.evals import print_eval_table
+    from agentshield.learning.retirement import MAX_FP_RATE, MIN_HITS, fp_rate, retire, review_hits
+    db = get_db()
+    console.print("reviewing live rule hits in context...")
+    review_hits(db)
+    t = Table("rule", "entity", "live hits", "judged FP", "FP rate", "verdict",
+              title=f"live rule health (retire at > {MAX_FP_RATE:.0%} FP with ≥ {MIN_HITS} hits)")
+    for r in db.rules.find({"status": "active"}).sort("rule_id", 1):
+        s = r.get("stats", {})
+        bad = s.get("live_hits", 0) >= MIN_HITS and fp_rate(s) > MAX_FP_RATE
+        t.add_row(r["rule_id"], r["entity_type"], str(s.get("live_hits", 0)), str(s.get("live_fp", 0)),
+                  f"{fp_rate(s):.0%}", "[red]retire[/]" if bad else "[green]keep[/]")
+    console.print(t)
+    for done in retire(db):
+        console.print(f"[red]retired {done['rule_id']}[/] → shadow ({done['fp_rate']:.0%} FP on {done['hits']} hits); "
+                      f"refinement incident {done['incident_id']} opened")
+        print_eval_table(console, done["eval"], done["previous"])
 
 
 def lineage() -> None:
@@ -51,6 +80,8 @@ def main():
     p.add_argument("--incident")
     sub.add_parser("evals")
     sub.add_parser("lineage")
+    sub.add_parser("drift")
+    sub.add_parser("retire")
     args = ap.parse_args()
 
     if args.cmd == "send":
@@ -73,6 +104,10 @@ def main():
         print_eval_table(console, *run_generation(get_db()))
     elif args.cmd == "lineage":
         lineage()
+    elif args.cmd == "drift":
+        drift()
+    elif args.cmd == "retire":
+        retire_rules()
 
 
 if __name__ == "__main__":
