@@ -1805,7 +1805,7 @@ def test_shape_keeps_short_uppercase_prefix_only():
     assert shape_of("CLM-2026-000913") == "CLM-0000-000000"
     assert shape_of("ADJ#77-1043") == "ADJ#00-0000"
     assert shape_of("0xab12") == "0xaa00"
-    assert shape_of("Maria Gonzalez") == "Aaaaa Aaaaaaa"
+    assert shape_of("Maria Gonzalez") == "Aaaaa Aaaaaaaa"
     assert shape_of("123-45-6789") == "000-00-0000"
 
 
