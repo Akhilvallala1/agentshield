@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Submissions due **5:00 PM PDT, Oct 11 2026**. Commit at least once per task; all commits dated today.
-- Python **3.11+** (we pin 3.12). Run everything from the repo root (`agentsheild/`) with `uv run ...` so `.env` is found.
+- Python **3.11+** (we pin 3.12). Run everything from the repo root (`agentshield/`) with `uv run ...` so `.env` is found.
 - All persistence goes to the hackathon Atlas cluster (**SFTW org, Cluster0, M10**). Database name `agentshield`.
 - **Synthetic data only** (Faker + fixtures). **Never store raw PII in MongoDB outside `vault`.** Incidents store shape-redacted excerpts, entity types, and SHA-256 hashes only.
 - Clean room: no code copied from other private codebases.
@@ -40,7 +40,7 @@
 ## File Structure
 
 ```
-agentsheild/
+agentshield/
   pyproject.toml                 # deps, package config (Task 1)
   .env / .env.example            # already exist
   agentshield/

@@ -308,7 +308,7 @@ AGENT_ENGINE_ENABLED=false
 ## 10. Repo layout
 
 ```
-agentsheild/               # repo root
+agentshield/               # repo root
   README.md                 # what it is, what was built today, how to run
   CLAUDE.md                 # pointer for Claude Code
   docs/
@@ -385,7 +385,7 @@ agentsheild/               # repo root
 ## 14. Git setup (personal identity, repo-local)
 
 ```bash
-cd ~/Desktop/Hackathon/MangoDB/agentsheild
+cd ~/Desktop/Hackathon/MangoDB/agentshield
 git init
 git config user.name "Akhil Vallala"
 git config user.email "akhilvallala0115@gmail.com"   # local only, do not use --global
