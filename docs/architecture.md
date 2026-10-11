@@ -107,7 +107,7 @@ Generalize from the shape, not the literal value. Prefer anchored, bounded patte
 Hard metric gates before a human ever sees the rule:
 1. Regex compiles and has no catastrophic backtracking (timeout test on a 10KB string).
 2. Matches 100% of `positive_examples`, 0% of `negative_examples`.
-3. Run against `corpus_clean` (500+ synthetic messages with no PII): **false positive rate must be < 1%**.
+3. Run against `corpus_clean` (500+ synthetic messages with no PII): **the candidate rule's own false positive rate must be < 1%** (messages the rule matches, divided by corpus size). Baseline Presidio noise does not count against it (see 15.2).
 4. Run the full eval suite with the candidate rule added: **recall must go up, precision must not drop more than 1 point**.
 
 Fail → the synthesizer gets the failure report and retries (max 3). This retry loop is part of the recursion and worth showing.
@@ -266,7 +266,7 @@ Gen 0 should score well on standard entities and badly on novel ones. Each appro
 | Vector search | Atlas Vector Search + Voyage AI embeddings |
 | Hot reload | MongoDB change streams |
 | NER | Microsoft Presidio (analyzer + anonymizer), spaCy `en_core_web_sm` |
-| LLM (auditor, synthesizer, demo agents) | Claude via Anthropic SDK, model set in `.env` |
+| LLM (auditor, synthesizer, demo agents) | OpenAI via the `openai` SDK, key in `LLM_API_KEY`, models set in `.env` (see 15.10) |
 | Agent runtime (optional) | Atlas Agent Engine SDK (LangGraph) if available in sandbox |
 | Terminal UI | Rich |
 | Synthetic data | Faker + hand-written fixtures |
@@ -275,9 +275,12 @@ Gen 0 should score well on standard entities and badly on novel ones. Each appro
 `.env.example`
 ```
 MONGODB_URI=
-ANTHROPIC_API_KEY=
+LLM_API_KEY=
 VOYAGE_API_KEY=
-LLM_MODEL=
+VOYAGE_MODEL=voyage-4-large
+EMBEDDING_DIM=1024
+LLM_MODEL_REASONING=gpt-5.6-luna        # auditor + synthesizer
+LLM_MODEL_FAST=gpt-5.6-luna             # demo agents (swap for a smaller model if available)
 FP_THRESHOLD=0.01
 AGENT_ENGINE_ENABLED=false
 ```
@@ -315,6 +318,7 @@ agentsheild/               # repo root
   pyproject.toml
   agentshield/
     config.py
+    llm.py                  # single OpenAI wrapper (15.10)
     db.py                   # Atlas client, collection handles, index creation
     gateway.py              # FastAPI app, /a2a/forward
     pipeline.py             # L1, L2, playbook, transform
@@ -387,3 +391,85 @@ git config user.name "Akhil Vallala"
 git config user.email "akhilvallala0115@gmail.com"   # local only, do not use --global
 ```
 Push to the personal GitHub account and make the repo public before submitting.
+
+---
+
+## 15. Addendum: gaps found in review (11:05 AM)
+
+These close gaps in Sections 0–14. Where this section and an earlier one disagree, this section wins.
+
+### 15.1 Labeled data format and matching
+`eval_set` documents:
+```js
+{ _id, msg_id: "E-0042", text: "...", spans: [ { start: 31, end: 44, entity_type: "INSURANCE_POLICY_NUMBER" } ],
+  kind: "standard" | "novel" | "mixed" }
+```
+`corpus_clean` documents: `{ _id, msg_id: "C-0107", text: "...", lookalike_of: "INSURANCE_POLICY_NUMBER" | null }`.
+
+Scoring: a detection is a **true positive** if it overlaps a labeled span **and** has the same entity type. Overlap, not exact match, so off-by-one boundaries from Presidio do not tank recall. Each labeled span counts once. Unmatched detections are false positives.
+
+### 15.2 Validator false positive gate
+Gate 3 in 3.5 measures **only the candidate rule** against `corpus_clean`. Presidio already flags some look-alikes (SKUs, version strings); that baseline noise is recorded in gen 0 evals but must not block a good rule. Gate 4 (eval delta) still runs the full pipeline.
+
+### 15.3 Pipeline is a pure function
+`pipeline.run(text, rules, playbook, ner) -> PipelineResult(transformed_text, detections, tokens)` does no I/O. The gateway loads rules and playbook, calls it, then writes `vault` and `traces`. `run_evals.py` and the validator call the same function in memory, so thousands of eval runs never touch Atlas until the summary is written to `evals`.
+
+### 15.4 Seed historical incidents
+`scripts/seed.py` also inserts 3–5 synthetic past incidents (already resolved, with embeddings), for example an older claim ID leak and an adjuster badge leak. Without them, vector search returns nothing on the first run and demo step 3 ("two similar past incidents") cannot happen.
+
+### 15.5 Auditor trigger
+Two modes, same code:
+- **On demand** (used in the demo): `demo.py` calls `auditor.audit_pending()` as an explicit step, so nobody waits on a poll interval on stage.
+- **Background**: `python -m agentshield.learning.auditor --watch` polls `traces` where `audited: false` every 5s.
+
+### 15.6 Quasi-identifiers are out of scope for regex rules
+"The only Tesla Cybertruck owner on Elm St" cannot be expressed as a regex. Keep a few in `eval_set` as a known gap. If the auditor flags one, the synthesizer should return `{"kind": "not_regexable"}`, and the incident stays open as `needs_human`. Optional demo beat: shows the system knows its limits.
+
+### 15.7 Demo determinism
+- Auditor and synthesizer use OpenAI Structured Outputs (a JSON schema) so responses always parse, and temperature 0 where the model accepts it.
+- One fixed "golden" leak message, stored in `demo_agents/fixtures.py`, drives the live demo.
+- `demo.py --replay` reads recorded LLM responses from `demo_agents/recordings/` if the API is slow or down.
+- Record the 1-minute video from a clean run, not live.
+
+### 15.8 ID counters
+New collection `counters`: `{ _id: "rule" | "incident", seq: 12 }`. IDs come from `find_one_and_update({_id}, {$inc: {seq: 1}}, upsert=True, return_document=AFTER)`, formatted as `R-0013` / `I-0013`. Safe across the gateway, auditor, and CLI processes.
+
+### 15.9 Process layout for the demo
+Four terminals (a tmux script, `scripts/demo_layout.sh`):
+1. Gateway (`uvicorn agentshield.gateway:app`), showing rule reload log lines
+2. Demo runner (`python -m agentshield.cli.demo`), which sends traffic and triggers the auditor
+3. Approval CLI (`python -m agentshield.cli.approve`)
+4. Evals (`python scripts/run_evals.py`)
+
+### 15.10 Models and keys
+- `LLM_API_KEY` holds an **OpenAI** API key. `config.py` passes it to `openai.OpenAI(api_key=...)`. All LLM calls go through one wrapper, `agentshield/llm.py`, so swapping provider is a one-file change.
+- Auditor + synthesizer: `LLM_MODEL_REASONING`, default `gpt-5.6-luna` (the model already used in `../hello-world-test`). Quality matters here; it is off the inline path.
+- Demo agents: `LLM_MODEL_FAST`, the same model by default; use a smaller one if the account has it.
+- Synthesizer and auditor outputs are defined as JSON schemas and requested via Structured Outputs.
+- Embeddings: Voyage `voyage-4-large`, 1024 dimensions, which must match the vector index `numDimensions`.
+
+### 15.11 Atlas capability smoke test (first task of M0)
+`scripts/smoke_atlas.py` checks, in under a minute:
+1. Connects with `MONGODB_URI` (IP allowlisted).
+2. Can insert into and drop a scratch collection.
+3. Can open a change stream (needs a replica set and the `changeStream` privilege).
+4. Can create and query an Atlas Vector Search index (`create_search_index`).
+5. Can create a TTL index.
+
+If 3 fails, hot reload falls back to polling `rules.updated_at` every second. If 4 fails, similar-incident lookup falls back to filtering by `entity_type_guess`. Both fallbacks keep the demo working; note them honestly in the README.
+
+### 15.12 Agent Engine
+The `agentengine` CLI (0.1.119) is installed, and `../hello-world-test` shows it works on this machine. Its template already allows outbound traffic to `api.openai.com`, which matches our LLM provider; a Shield agent only needs `api.voyageai.com` added to `network.egress`. Decision: **defer to M6**. M0–M5 use the FastAPI gateway.
+
+### 15.13 Tests
+`tests/` with pytest, written before the code they cover:
+- `test_pipeline.py`: L1 rule hit, Presidio hit, each playbook action, token round-trip.
+- `test_validator.py`: catastrophic-backtracking pattern rejected, positive/negative gates, FP gate.
+- `test_scoring.py`: overlap matching from 15.1.
+
+Run with `uv run pytest`. No test talks to Atlas or an LLM.
+
+### 15.14 Submission checklist additions
+- Commit at least once per milestone so the history is clearly dated today.
+- README "Built today" section lists each milestone and its commit.
+- Before any `gh` command, confirm the active account is `Akhilvallala1` (`gh auth status`).
