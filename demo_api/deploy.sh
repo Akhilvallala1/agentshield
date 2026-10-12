@@ -16,7 +16,7 @@ gcloud artifacts repositories describe "$REPO" --location "$REGION" >/dev/null 2
 
 gcloud builds submit --config demo_api/cloudbuild.yaml --substitutions "_IMAGE=${IMAGE}" .
 
-# Scales to zero when idle, so it stays inside Cloud Run's free tier. The portfolio page pings /healthz
+# Scales to zero when idle, so it stays inside Cloud Run's free tier. The portfolio page pings /health
 # on load, which wakes the instance while the visitor reads; startup CPU boost shortens that wake-up.
 # max 2 + concurrency caps the bill if someone floods it.
 gcloud run deploy "$SERVICE" \

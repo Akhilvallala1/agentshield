@@ -29,7 +29,7 @@ CORS locked to the portfolio site, max 2 instances.
 POST /redact   {"text": "..."}
 -> {"output": "...", "blocked": false, "blocked_types": [], "latency_ms": 12.3,
     "detections": [{"entity_type": "PERSON", "start": 12, "end": 26, "layer": "L2", "rule_id": null}]}
-GET  /healthz
+GET  /health
 ```
 
 ## Run locally
@@ -49,5 +49,5 @@ PROJECT_ID=your-project ./demo_api/deploy.sh
 
 Runs with 1 GiB, 1 vCPU, min 0 instances, max 2, with startup CPU boost. It scales to zero when idle,
 so normal portfolio traffic stays inside Cloud Run's free tier (about $0 to $1 a month). The page calls
-`/healthz` on load, which wakes the instance before a visitor turns on the real engine. For zero cold
+`/health` on load, which wakes the instance before a visitor turns on the real engine. For zero cold
 starts, set `--min-instances 1` (roughly $10 to $15 a month).

@@ -66,3 +66,7 @@ def test_cors_only_for_the_site(client):
 
 def test_no_docs_exposed(client):
     assert client.get("/docs").status_code == 404 and client.get("/openapi.json").status_code == 404
+
+
+def test_health_route_avoids_cloud_run_reserved_z_suffix(client):
+    assert client.get("/health").json() == {"ok": True}

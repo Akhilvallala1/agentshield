@@ -102,7 +102,7 @@ def client_key(request: Request) -> str:
     return forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
 
 
-@app.get("/healthz")
+@app.get("/health")  # Cloud Run reserves paths ending in "z", so not /healthz
 def healthz() -> dict:
     return {"ok": True}
 
