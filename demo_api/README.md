@@ -47,6 +47,7 @@ gcloud auth login
 PROJECT_ID=your-project ./demo_api/deploy.sh
 ```
 
-Runs with 1 GiB, 1 vCPU, min 1 instance (no cold starts), max 2. Expect roughly $10 to $15 a month
-for the idle minimum instance. Set `--min-instances 0` in `deploy.sh` to pay only per request,
-at the cost of a cold start of several seconds.
+Runs with 1 GiB, 1 vCPU, min 0 instances, max 2, with startup CPU boost. It scales to zero when idle,
+so normal portfolio traffic stays inside Cloud Run's free tier (about $0 to $1 a month). The page calls
+`/healthz` on load, which wakes the instance before a visitor turns on the real engine. For zero cold
+starts, set `--min-instances 1` (roughly $10 to $15 a month).

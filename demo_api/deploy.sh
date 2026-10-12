@@ -16,10 +16,12 @@ gcloud artifacts repositories describe "$REPO" --location "$REGION" >/dev/null 2
 
 gcloud builds submit --config demo_api/cloudbuild.yaml --substitutions "_IMAGE=${IMAGE}" .
 
-# min 1 instance: no cold start for visitors. max 2 + concurrency caps the bill if someone floods it.
+# Scales to zero when idle, so it stays inside Cloud Run's free tier. The portfolio page pings /healthz
+# on load, which wakes the instance while the visitor reads; startup CPU boost shortens that wake-up.
+# max 2 + concurrency caps the bill if someone floods it.
 gcloud run deploy "$SERVICE" \
   --image "$IMAGE" --region "$REGION" --allow-unauthenticated \
-  --memory 1Gi --cpu 1 --min-instances 1 --max-instances 2 --concurrency 20 --timeout 15 \
+  --memory 1Gi --cpu 1 --min-instances 0 --max-instances 2 --concurrency 20 --timeout 15 --cpu-boost \
   --set-env-vars "ALLOWED_ORIGINS=https://akhilvallala1.github.io"
 
 gcloud run services describe "$SERVICE" --region "$REGION" --format 'value(status.url)'
